@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scribblr — Handwritten Docs</title>
+
+  <!-- Google Fonts: UI -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@700&family=Caveat:wght@400;700&family=Kalam:wght@300;400;700&family=Patrick+Hand&family=Dancing+Script:wght@400;700&family=Architects+Daughter&family=Indie+Flower&display=swap" rel="stylesheet" />
+
+  <!-- jsPDF + html2canvas (self-hosted) -->
+  <script src="vendor/jspdf.umd.min.js"></script>
+  <script src="vendor/html2canvas.min.js"></script>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ===== HEADER ===== -->
+  <header class="app-header">
+    <div class="app-logo">✍️ Scribblr</div>
+    <p class="app-tagline">Turn your text into handwritten magic</p>
+  </header>
+
+  <!-- ===== MAIN LAYOUT ===== -->
+  <main class="app-main">
+
+    <!-- ===== LEFT PANEL ===== -->
+    <aside class="panel panel-left">
+
+      <!-- Assignment Header Fields -->
+      <section class="control-section">
+        <h2 class="section-title">Assignment Header</h2>
+        <div class="header-fields">
+          <label class="field-label">Name
+            <input type="text" id="input-name" class="text-input" placeholder="Your name" />
+          </label>
+          <label class="field-label">Date
+            <input type="text" id="input-date" class="text-input" placeholder="e.g. April 22, 2026" />
+          </label>
+          <label class="field-label full-width">Subject
+            <input type="text" id="input-subject" class="text-input" placeholder="Subject / Topic" />
+          </label>
+        </div>
+      </section>
+
+      <!-- Text Input -->
+      <section class="control-section">
+        <h2 class="section-title">Assignment Text</h2>
+        <textarea id="input-text" class="text-input textarea-main" placeholder="Paste your assignment here..."></textarea>
+      </section>
+
+      <!-- Handwriting Style Picker -->
+      <section class="control-section">
+        <h2 class="section-title">Handwriting Style</h2>
+        <div class="style-picker" id="style-picker">
+          <button class="style-card active" data-font="Caveat">
+            <span class="style-sample" style="font-family:'Caveat'">Hello</span>
+            <span class="style-name">Caveat</span>
+          </button>
+          <button class="style-card" data-font="Kalam">
+            <span class="style-sample" style="font-family:'Kalam'">Hello</span>
+            <span class="style-name">Kalam</span>
+          </button>
+          <button class="style-card" data-font="Patrick Hand">
+            <span class="style-sample" style="font-family:'Patrick Hand'">Hello</span>
+            <span class="style-name">Patrick Hand</span>
+          </button>
+          <button class="style-card" data-font="Dancing Script">
+            <span class="style-sample" style="font-family:'Dancing Script'">Hello</span>
+            <span class="style-name">Dancing Script</span>
+          </button>
+          <button class="style-card" data-font="Architects Daughter">
+            <span class="style-sample" style="font-family:'Architects Daughter'">Hello</span>
+            <span class="style-name">Architects Daughter</span>
+          </button>
+          <button class="style-card" data-font="Indie Flower">
+            <span class="style-sample" style="font-family:'Indie Flower'">Hello</span>
+            <span class="style-name">Indie Flower</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Paper Style Toggle -->
+      <section class="control-section">
+        <h2 class="section-title">Paper Style</h2>
+        <div class="pill-toggle" id="paper-toggle">
+          <button class="pill active" data-paper="lined">📓 Lined Paper</button>
+          <button class="pill" data-paper="plain">⬜ Plain Paper</button>
+        </div>
+      </section>
+
+      <!-- Ink Color Picker -->
+      <section class="control-section">
+        <h2 class="section-title">Ink Color</h2>
+        <div class="ink-swatches" id="ink-swatches">
+          <button class="swatch active" data-color="#1a237e" style="background:#1a237e" title="Dark Blue"></button>
+          <button class="swatch" data-color="#1a1a1a" style="background:#1a1a1a" title="Black"></button>
+          <button class="swatch" data-color="#0d2137" style="background:#0d2137" title="Navy"></button>
+          <button class="swatch" data-color="#1b4332" style="background:#1b4332" title="Dark Green"></button>
+          <button class="swatch" data-color="#555555" style="background:#555555" title="Pencil Gray"></button>
+        </div>
+      </section>
+
+      <!-- Sliders -->
+      <section class="control-section">
+        <h2 class="section-title">Fine-tune</h2>
+
+        <label class="slider-label">
+          <span>Slant <span class="slider-val" id="slant-val">0°</span></span>
+          <input type="range" id="slant" min="-10" max="10" value="0" step="0.5" />
+        </label>
+
+        <label class="slider-label">
+          <span>Letter Spacing <span class="slider-val" id="spacing-val">0px</span></span>
+          <input type="range" id="letter-spacing" min="-1" max="4" value="0" step="0.1" />
+        </label>
+
+        <label class="slider-label">
+          <span>Font Size <span class="slider-val" id="size-val">20px</span></span>
+          <input type="range" id="font-size" min="16" max="28" value="20" step="1" />
+        </label>
+      </section>
+
+      <!-- Randomness Toggle -->
+      <section class="control-section">
+        <div class="toggle-row">
+          <label class="toggle-label" for="randomness">
+            <span>✨ Randomness</span>
+            <small>Simulates real handwriting variation</small>
+          </label>
+          <label class="switch">
+            <input type="checkbox" id="randomness" checked />
+            <span class="slider-switch"></span>
+          </label>
+        </div>
+      </section>
+
+      <!-- Download Button -->
+      <section class="control-section">
+        <button class="btn-download" id="btn-download">
+          ⬇ Download PDF
+        </button>
+      </section>
+
+    </aside>
+
+    <!-- ===== RIGHT PANEL ===== -->
+    <section class="panel panel-right">
+      <div class="preview-wrapper">
+        <div class="paper-sheet" id="paper-preview">
+          <!-- Assignment header -->
+          <div class="paper-header" id="paper-header">
+            <div class="header-row">
+              <span class="header-field"><span class="header-key">Name:</span> <span id="preview-name" class="header-val"></span></span>
+              <span class="header-field"><span class="header-key">Date:</span> <span id="preview-date" class="header-val"></span></span>
+            </div>
+            <div class="header-row">
+              <span class="header-field full"><span class="header-key">Subject:</span> <span id="preview-subject" class="header-val"></span></span>
+            </div>
+          </div>
+
+          <!-- Main text output -->
+          <div class="paper-text" id="paper-text"></div>
+
+          <!-- Page number -->
+          <div class="page-number" id="page-number">— 1 —</div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===== TOAST ===== -->
+  <div class="toast" id="toast">Your handwritten doc is ready ✍️</div>
+
+  <script src="app.js"></script>
+</body>
+</html>
