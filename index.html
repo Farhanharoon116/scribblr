@@ -49,7 +49,19 @@
       <!-- Text Input -->
       <section class="control-section">
         <h2 class="section-title">Assignment Text</h2>
-        <textarea id="input-text" class="text-input textarea-main" placeholder="Paste your assignment here..."></textarea>
+        <!-- Rich-text color toolbar -->
+        <div class="text-toolbar" id="text-toolbar">
+          <span class="toolbar-label">Ink:</span>
+          <button class="text-swatch active" data-color="#1a1a1a" style="background:#1a1a1a" title="Black"></button>
+          <button class="text-swatch" data-color="#1a237e" style="background:#1a237e" title="Dark Blue"></button>
+          <button class="text-swatch" data-color="#0d2137" style="background:#0d2137" title="Navy"></button>
+          <button class="text-swatch" data-color="#1b4332" style="background:#1b4332" title="Dark Green"></button>
+          <button class="text-swatch" data-color="#555555" style="background:#555555" title="Pencil Gray"></button>
+          <button class="text-swatch" data-color="#8B0000" style="background:#8B0000" title="Red"></button>
+        </div>
+        <div id="input-text" class="text-editor" contenteditable="true"
+             role="textbox" aria-multiline="true"
+             data-placeholder="Paste your assignment here..."></div>
       </section>
 
       <!-- Handwriting Style Picker -->
@@ -155,6 +167,8 @@
           <div class="paper-header" id="paper-header">
             <div class="header-row">
               <span class="header-field"><span class="header-key">Name:</span> <span id="preview-name" class="header-val"></span></span>
+            </div>
+            <div class="header-row">
               <span class="header-field"><span class="header-key">Date:</span> <span id="preview-date" class="header-val"></span></span>
             </div>
             <div class="header-row">
@@ -164,6 +178,15 @@
 
           <!-- Main text output -->
           <div class="paper-text" id="paper-text"></div>
+
+          <!-- Paper grain texture overlay (subtle feTurbulence noise) -->
+          <svg class="paper-grain" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+            <filter id="paper-noise">
+              <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/>
+              <feColorMatrix type="saturate" values="0"/>
+            </filter>
+            <rect width="100%" height="100%" filter="url(#paper-noise)" opacity="0.05"/>
+          </svg>
 
           <!-- Page number -->
           <div class="page-number" id="page-number">— 1 —</div>

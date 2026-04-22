@@ -9,7 +9,6 @@
 
   // ── State ───────────────────────────────────────────────────
   const state = {
-    text:          '',
     name:          '',
     date:          '',
     subject:       '',
@@ -29,6 +28,7 @@
   const elName       = $('input-name');
   const elDate       = $('input-date');
   const elSubject    = $('input-subject');
+  const elToolbar    = $('text-toolbar');
   const elStylePkr   = $('style-picker');
   const elPaperTog   = $('paper-toggle');
   const elInkSwatch  = $('ink-swatches');
@@ -49,6 +49,21 @@
   const spacingVal = $('spacing-val');
   const sizeVal    = $('size-val');
 
+  // ── Realism constants ─────────────────────────────────────────
+  const MIN_DRIFT_WORDS      = 3;    // baseline drifts every 3–5 words
+  const DRIFT_WORD_RANGE     = 3;
+  const BASELINE_DRIFT_RANGE = 4;    // ±2 px vertical drift between word groups
+  const WORD_SPACING_VARIANCE = 4;   // ±2 px extra margin between words
+  const MAX_VERTICAL_OFFSET  = 3;    // hard cap on per-char vertical offset (px)
+  const CHAR_JITTER_RANGE    = 2;    // ±1 px per-char vertical jitter
+  const MIN_INK_OPACITY      = 0.88; // ink-fade lower bound (per word)
+  const INK_OPACITY_RANGE    = 0.12; // ink-fade range: 0.88–1.0
+  const TILT_FREQUENCY       = 1 / 15; // fraction of chars with extra tilt
+  const OCCASIONAL_TILT_RANGE = 4;   // ±2° for the occasional tilt
+  const NORMAL_WOBBLE_RANGE  = 3;    // ±1.5° for normal wobble
+  const SCALE_VARIANCE       = 0.06; // ±3% scale per character
+  const LETTER_SPACING_VARIANCE = 2; // ±1 px letter-spacing inconsistency
+
   // ── Helper: show toast ────────────────────────────────────────
   function showToast(msg) {
     elToast.textContent = msg;
@@ -56,12 +71,173 @@
     setTimeout(() => elToast.classList.remove('show'), 3200);
   }
 
-  // ── Helper: random offset for a character ─────────────────────
-  function randOffset() {
-    const dy  = (Math.random() - 0.5) * 4;   // ±2px
-    const rot = (Math.random() - 0.5) * 3;   // ±1.5deg
-    const sc  = 1 + (Math.random() - 0.5) * 0.06; // ±3% scale
-    return `translateY(${dy.toFixed(2)}px) rotate(${rot.toFixed(2)}deg) scale(${sc.toFixed(3)})`;
+  // ── Helper: escape HTML ───────────────────────────────────────
+  function escapeHtml(ch) {
+    if (ch === '&') return '&amp;';
+    if (ch === '<') return '&lt;';
+    if (ch === '>') return '&gt;';
+    if (ch === '"') return '&quot;';
+    return ch;
+  }
+
+  // ── Parse contenteditable into [{ch, color}] array ───────────
+  function getColoredChars(el) {
+    const chars = [];
+    let isAtBlockStart = true;
+
+    function walk(node, color) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        for (const ch of node.textContent) {
+          chars.push({ ch, color });
+        }
+        isAtBlockStart = false;
+        return;
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+      const tag = node.tagName;
+      let c = color;
+      // execCommand('foreColor') produces <font color="..."> in most browsers
+      if (tag === 'FONT' && node.getAttribute('color')) c = node.getAttribute('color');
+      // Some browsers produce <span style="color:...">
+      if (node.style && node.style.color) c = node.style.color;
+
+      if (tag === 'BR') {
+        chars.push({ ch: '\n', color: c });
+        isAtBlockStart = true;
+        return;
+      }
+
+      // contenteditable wraps each line in a <div> or <p> after Enter
+      const isBlock = tag === 'DIV' || tag === 'P';
+      if (isBlock && node !== el) {
+        if (!isAtBlockStart) chars.push({ ch: '\n', color });
+        isAtBlockStart = true;
+      }
+
+      for (const child of node.childNodes) {
+        walk(child, c);
+      }
+    }
+
+    walk(el, null);
+
+    // Trim trailing newlines
+    while (chars.length > 0 && chars[chars.length - 1].ch === '\n') {
+      chars.pop();
+    }
+    return chars;
+  }
+
+  // ── Build preview HTML with all realism effects ───────────────
+  function buildHtml(coloredChars) {
+    if (!coloredChars.length) return '';
+
+    const useRandom = state.randomness;
+
+    // Tokenize into word / space / newline tokens
+    const tokens = [];
+    let i = 0;
+    while (i < coloredChars.length) {
+      const { ch, color } = coloredChars[i];
+      if (ch === '\n') {
+        tokens.push({ type: 'newline' });
+        i++;
+      } else if (ch === ' ') {
+        tokens.push({ type: 'space', color });
+        i++;
+      } else {
+        const wordChars = [];
+        while (i < coloredChars.length && coloredChars[i].ch !== ' ' && coloredChars[i].ch !== '\n') {
+          wordChars.push(coloredChars[i]);
+          i++;
+        }
+        tokens.push({ type: 'word', chars: wordChars });
+      }
+    }
+
+    let html = '';
+    // Baseline-drift state — resets per line
+    let wordCount    = 0;
+    let nextDriftAtWordCount = MIN_DRIFT_WORDS + Math.floor(Math.random() * DRIFT_WORD_RANGE);
+    let baselineDrift = 0; // px
+    let isLineStart  = true;
+
+    tokens.forEach(token => {
+      if (token.type === 'newline') {
+        html += '<br>';
+        isLineStart   = true;
+        baselineDrift = 0; // pen repositions to new line
+        wordCount     = 0;
+        nextDriftAtWordCount = MIN_DRIFT_WORDS + Math.floor(Math.random() * DRIFT_WORD_RANGE);
+        return;
+      }
+
+      if (token.type === 'space') {
+        // Word-spacing variation
+        const extraWordSpacing = useRandom ? ((Math.random() - 0.5) * WORD_SPACING_VARIANCE).toFixed(1) : '0';
+        html += `<span class="char" style="display:inline-block;white-space:pre;margin-right:${extraWordSpacing}px"> </span>`;
+
+        // Each space = word boundary; drift may shift every 3–5 words
+        wordCount++;
+        if (useRandom && wordCount >= nextDriftAtWordCount) {
+          baselineDrift        = (Math.random() - 0.5) * BASELINE_DRIFT_RANGE;
+          wordCount            = 0;
+          nextDriftAtWordCount = MIN_DRIFT_WORDS + Math.floor(Math.random() * DRIFT_WORD_RANGE);
+        }
+        return;
+      }
+
+      // ── Word token ───────────────────────────────────────────
+      // Pen-pressure simulation: font-weight 400 or 500, per word
+      const wordWeight = useRandom ? (Math.random() < 0.5 ? 400 : 500) : 400;
+      // Ink-fade: opacity MIN_INK_OPACITY–1.0, per word
+      const wordOpacity = useRandom ? (MIN_INK_OPACITY + Math.random() * INK_OPACITY_RANGE).toFixed(3) : '1';
+
+      token.chars.forEach(({ ch, color }, idx) => {
+        // First char of each line gets 1–2 px size boost (human instinct)
+        const isFirst   = isLineStart && idx === 0;
+        const sizeBoost = (isFirst && useRandom) ? 1 + Math.floor(Math.random() * 2) : 0;
+
+        // Vertical: drift + per-char jitter, capped at MAX_VERTICAL_OFFSET
+        let dy = 0;
+        if (useRandom) {
+          dy = Math.max(-MAX_VERTICAL_OFFSET, Math.min(MAX_VERTICAL_OFFSET,
+            baselineDrift + (Math.random() - 0.5) * CHAR_JITTER_RANGE));
+        }
+
+        // Rotation: occasional tilt (TILT_FREQUENCY) ±2°, rest ±1.5°
+        let rot = 0;
+        if (useRandom) {
+          rot = Math.random() < TILT_FREQUENCY
+            ? (Math.random() - 0.5) * OCCASIONAL_TILT_RANGE
+            : (Math.random() - 0.5) * NORMAL_WOBBLE_RANGE;
+        }
+
+        const sc = useRandom ? (1 + (Math.random() - 0.5) * SCALE_VARIANCE).toFixed(3) : '1';
+
+        // Letter-spacing inconsistency: ±1 px per character
+        const charMargin = useRandom ? ((Math.random() - 0.5) * LETTER_SPACING_VARIANCE).toFixed(1) : '0';
+
+        const transform = `translateY(${dy.toFixed(2)}px) rotate(${rot.toFixed(2)}deg) scale(${sc})`;
+
+        const styleParts = ['display:inline-block', 'white-space:pre'];
+        if (useRandom) {
+          styleParts.push(`transform:${transform}`);
+          styleParts.push(`font-weight:${wordWeight}`);
+          styleParts.push(`opacity:${wordOpacity}`);
+          styleParts.push(`margin-right:${charMargin}px`);
+          if (sizeBoost > 0) styleParts.push(`font-size:${state.fontSize + sizeBoost}px`);
+        }
+        if (color) styleParts.push(`color:${color}`);
+
+        html += `<span class="char" style="${styleParts.join(';')}">${escapeHtml(ch)}</span>`;
+      });
+
+      isLineStart = false;
+    });
+
+    return html;
   }
 
   // ── Render preview ────────────────────────────────────────────
@@ -81,46 +257,22 @@
     elPaper.classList.toggle('lined', state.paper === 'lined');
 
     // Font, color, size on the paper sheet
-    elPaper.style.fontFamily  = `'${state.font}', cursive`;
-    elPaper.style.color       = state.inkColor;
-    elPaper.style.fontSize    = state.fontSize + 'px';
-    elPaper.style.fontStyle   = state.slant !== 0 ? 'italic' : 'normal';
-    elPaper.style.transform   = state.slant !== 0
-      ? `skewX(${state.slant}deg)`
-      : 'none';
+    elPaper.style.fontFamily    = `'${state.font}', cursive`;
+    elPaper.style.color         = state.inkColor;
+    elPaper.style.fontSize      = state.fontSize + 'px';
+    elPaper.style.fontStyle     = state.slant !== 0 ? 'italic' : 'normal';
+    elPaper.style.transform     = state.slant !== 0 ? `skewX(${state.slant}deg)` : 'none';
     elPaper.style.letterSpacing = state.letterSpacing + 'px';
 
-    // Build character spans
-    const raw = state.text || '';
-    const useRandom = state.randomness;
-
-    // Split text into lines to preserve newlines
-    const lines = raw.split('\n');
-    let html = '';
-    lines.forEach((line, li) => {
-      const chars = line.length ? [...line] : [' ']; // keep blank line height
-      chars.forEach(ch => {
-        const isSpace = ch === ' ';
-        const transform = (useRandom && !isSpace) ? `style="display:inline-block;white-space:pre;transform:${randOffset()}"` : 'style="display:inline-block;white-space:pre;"';
-        html += `<span class="char" ${transform}>${escapeHtml(ch)}</span>`;
-      });
-      if (li < lines.length - 1) html += '<br>';
-    });
+    // Build character spans from contenteditable content
+    const coloredChars = getColoredChars(elText);
+    const html = buildHtml(coloredChars);
 
     // Apply ink animation on fresh render
     elPaperText.classList.remove('ink-animate');
-    // Force reflow
     void elPaperText.offsetWidth;
     elPaperText.innerHTML = html;
     elPaperText.classList.add('ink-animate');
-  }
-
-  function escapeHtml(ch) {
-    if (ch === '&') return '&amp;';
-    if (ch === '<') return '&lt;';
-    if (ch === '>') return '&gt;';
-    if (ch === '"') return '&quot;';
-    return ch;
   }
 
   // ── PDF export ────────────────────────────────────────────────
@@ -211,8 +363,45 @@
 
   // ── Event listeners ───────────────────────────────────────────
 
-  // Text
-  elText.addEventListener('input', () => { state.text = elText.value; scheduleRender(); });
+  // Text (contenteditable)
+  elText.addEventListener('input', () => {
+    // Normalize empty state so CSS :empty placeholder shows
+    if (!elText.textContent.trim()) elText.innerHTML = '';
+    scheduleRender();
+  });
+
+  // Paste: strip rich formatting, insert plain text only
+  elText.addEventListener('paste', e => {
+    e.preventDefault();
+    const text = e.clipboardData.getData('text/plain');
+    const sel = window.getSelection();
+    if (sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      range.deleteContents();
+      range.insertNode(document.createTextNode(text));
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+    scheduleRender();
+  });
+
+  // Rich text color toolbar
+  elToolbar.addEventListener('mousedown', e => {
+    // Prevent swatch click from stealing focus (and text selection) from the editor
+    if (e.target.closest('.text-swatch')) e.preventDefault();
+  });
+
+  elToolbar.addEventListener('click', e => {
+    const sw = e.target.closest('.text-swatch');
+    if (!sw) return;
+    document.querySelectorAll('.text-swatch').forEach(s => s.classList.remove('active'));
+    sw.classList.add('active');
+    // Apply color to the current selection inside the contenteditable editor
+    document.execCommand('foreColor', false, sw.dataset.color);
+    elText.focus();
+    scheduleRender();
+  });
 
   // Header fields
   elName.addEventListener('input',    () => { state.name    = elName.value;    scheduleRender(); });
