@@ -58,7 +58,7 @@
 
   // ── Helper: random offset for a character ─────────────────────
   function randOffset() {
-    const dy  = (Math.random() - 0.5) * 4;   // ±2px
+    const dy  = (Math.random() - 0.5) * 2;   // ±1px
     const rot = (Math.random() - 0.5) * 3;   // ±1.5deg
     const sc  = 1 + (Math.random() - 0.5) * 0.06; // ±3% scale
     return `translateY(${dy.toFixed(2)}px) rotate(${rot.toFixed(2)}deg) scale(${sc.toFixed(3)})`;

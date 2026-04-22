@@ -360,21 +360,21 @@ input[type="range"]::-moz-range-thumb {
       var(--line-color) 32px
     );
   background-size: auto, 100% 32px;
-  background-position: 60px 0, 0 0;
+  background-position: 60px 52px, 0 52px;
 }
 
 /* ---------- Paper header ---------- */
 .paper-header {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: 18px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgba(59,42,26,0.12);
+  /* 8px shifts the first baseline (~23px into 32px line box) onto the first ruled line at y=31px */
+  padding-top: 8px;
 }
 .header-row {
   display: flex;
-  gap: 24px;
+  height: 32px;
+  line-height: 32px;
+  align-items: baseline;
 }
 .header-field {
   display: flex;
@@ -395,7 +395,7 @@ input[type="range"]::-moz-range-thumb {
 .paper-text {
   flex: 1;
   overflow: hidden;
-  line-height: 2; /* matches 32px line height when font-size ~16px */
+  line-height: 32px;
   word-break: break-word;
 }
 
@@ -463,6 +463,9 @@ input[type="range"]::-moz-range-thumb {
   .paper-sheet {
     padding: 36px 32px 36px 48px;
   }
+  .paper-sheet.lined {
+    background-position: 60px 36px, 0 36px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -470,4 +473,5 @@ input[type="range"]::-moz-range-thumb {
   .header-fields { grid-template-columns: 1fr; }
   .field-label.full-width { grid-column: auto; }
   .paper-sheet { padding: 28px 20px 28px 36px; }
+  .paper-sheet.lined { background-position: 60px 28px, 0 28px; }
 }
