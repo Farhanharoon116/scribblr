@@ -197,7 +197,7 @@
         pdf.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, pageW, destH);
       }
 
-      pdf.save('handwritr-output.pdf');
+      pdf.save('scribblr-output.pdf');
       showToast('Your handwritten doc is ready ✍️');
 
     } catch (err) {
